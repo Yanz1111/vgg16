@@ -1,0 +1,185 @@
+#dataset
+import os, shutil
+import random
+import torchvision
+
+def move_file(src, dst):
+    if not os.path.isfile(src):
+        print('src not exit')
+    else:
+        fpath, fname = os.path.split(dst)
+        if not os.path.exists(fpath):
+            os.makedirs(fpath)
+        shutil.move(src, dst)
+
+validation_rate = 0.15
+img_num = 1000
+te_num = int(img_num * validation_rate)#te: test
+
+te_index = random.sample(range(0, img_num), te_num)
+file_path = 'root'
+train = 'train'
+te = 'te'
+cat = 'cat'
+dog = 'dog'
+
+for i in range(len(te_index)):
+    src = os.path.join(file_path, train, cat, str(te_index[i]) + '.jpg')
+    dst = os.path.join(file_path, te, cat, str(te_index[i]) + '.jpg')
+    move_file(src, dst)
+
+    src = os.path.join(file_path, train, dog, str(te_index[i]) + '.jpg')
+    dst = os.path.join(file_path, te, dog, str(te_index[i]) + '.jpg')
+    move_file(src, dst)
+
+transforms = torchvision.transforms.Compose(
+    [
+        torchvision.transforms.RandomResizedCrop(224),
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean = [0.485, 0.456, 0.406],
+                             std = [0.229, 0.224, 0.225])
+    ]
+)
+
+train_data = torchvision.datasets.ImageFolder(os.path.join(file_path, train), transforms)
+te_data = torchvision.datasets.ImageFolder(os.path.join(file_path, te), transforms)
+
+#load data and construct CNN
+import torch
+import torch.nn as nn
+import torch.nn.functional as f
+from torch.utils import data
+import torch.optim as optim
+
+
+train_loader = data.DataLoader(train_data, batch_size = 32, shuffle = True, pin_memory = True)
+test_loader = data.DataLoader(te_data, batch_size = 32)
+
+class vgg16(nn.Module):
+    def __init__(self, num = 3):
+
+        super(vgg16, self).__init__()
+
+        self.num =num
+
+        self.relu1 = nn.ReLU()
+        self.softmax = nn.Softmax(dim = 1)
+        self.maxpool = nn.MaxPool2d(2, 2)
+
+        self.conv1_1 = nn.Conv2d(3, 64, 3, 1, 1)
+        self.conv1_2 = nn.Conv2d(64, 64, 3, 1, 1)
+
+        self.conv2_1 = nn.Conv2d(64, 128, 3, 1, 1)
+        self.conv2_2 = nn.Conv2d(128, 128, 3, 1, 1)
+
+        self.conv3_1 = nn.Conv2d(128, 256, 3, 1, 1)
+        self.conv3_2 = nn.Conv2d(256, 256, 3, 1, 1)
+        self.conv3_3 = nn.Conv2d(256, 256, 3, 1, 1)
+
+        self.conv4_1 = nn.Conv2d(256, 512, 3, 1, 1)
+        self.conv4_2 = nn.Conv2d(512, 512, 3, 1, 1)
+        self.conv4_3 = nn.Conv2d(512, 512, 3, 1, 1)
+
+        self.conv5_1 = nn.Conv2d(512, 512, 3, 1, 1)
+        self.conv5_2 = nn.Conv2d(512, 512, 3, 1, 1)
+        self.conv5_3 = nn.Conv2d(512, 512, 3, 1, 1)
+
+        self.fc_1 = nn.Linear(512 * 7 * 7, 4096)
+        self.fc_2 = nn.Linear(4096, 4096)
+        self.fc_3 = nn.Linear(4096, num)
+
+    def forward(self, x):
+        x = self.conv1_1(x)
+        x = self.relu1(x)
+        x = self.conv1_2(x)
+        x = self.relu1(x)
+
+        x = self.maxpool(x)
+        x = self.conv2_1(x)
+        x = self.relu1(x)
+        x = self.conv2_2(x)
+        x = self.relu1(x)
+
+        x = self.maxpool(x)
+        x = self.conv3_1(x)
+        x = self.relu1(x)
+        x = self.conv3_2(x)
+        x = self.relu1(x)
+        x = self.conv3_3(x)
+        x = self.relu1(x)
+
+        x = self.maxpool(x)
+        x = self.conv4_1(x)
+        x = self.relu1(x)
+        x = self.conv4_2(x)
+        x = self.relu1(x)
+        x = self.conv4_3(x)
+        x = self.relu1(x)
+
+        x = self.maxpool(x)
+        x = self.conv5_1(x)
+        x = self.relu1(x)
+        x = self.conv5_2(x)
+        x = self.relu1(x)
+        x = self.conv5_3(x)
+        x = self.relu1(x)
+
+        x = self.maxpool(x)
+
+        x = x.view(x.size(0), -1)
+
+        x = self.fc_1(x)
+        x = self.relu1(x)
+        x = self.fc_2(x)
+        x = self.relu1(x)
+        x = self.fc_3(x)
+        x = self.softmax(x)
+
+        return x
+
+
+#train
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu" )
+model = vgg16().to(device)
+
+optimizer = optim.Adam(model.parameters(),lr = 1e-4)
+loss = torch.nn.CrossEntropyLoss()
+
+def train(model, device, train_loader, optimizer, epoch, losses):
+    model.train()
+    for idx, (t_data, t_target) in enumerate(train_loader):
+        t_data, t_target = t_data.to(device), t_target.to(device)
+        pred = model(t_data)
+        loss = f.nll_loss(pred, t_target)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        if idx % 10 == 0:
+            print("epoch:{},iteration:{},loss:{}".format(epoch,idx,loss.item()))
+            losses.append(loss.item())
+
+
+def te(model, device, test_loader):
+    model.eval()
+    correct = 0
+    with torch.no_grad():
+        for idx, (t_data, t_target) in enumerate(test_loader):
+            t_data, t_target=t_data.to(device), t_target.to(device)
+            pred = model(t_data)
+            pred_class = pred.argmax(dim=1)
+            correct += pred_class.eq(t_target.view_as(pred_class)).sum().item()
+    acc = correct / len(te_data)
+    print("accuracy:{}".format(acc))
+
+
+num_epochs = 5
+losses = []
+from time import *
+begin_time = time()
+for epoch in range(num_epochs):
+    train(model, device, train_loader, optimizer, epoch, losses)
+
+end_time = time()
+
+te(model, device, test_loader)
