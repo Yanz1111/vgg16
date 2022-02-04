@@ -1,0 +1,38 @@
+import torchvision.transforms as transforms
+from PIL import Image
+import torch
+import numpy as np
+import os
+import random
+
+trans1 = transforms.ToTensor()
+
+index = random.sample(range(0, 3), 2)
+
+img = np.array(Image.open(root))
+print(img)
+print(img.shape)
+
+img_transformed1 = trans1(img)
+print(img_transformed1)
+
+print(img.size)
+
+
+data = transforms.ToTensor()(img)
+print(data.shape)
+
+data1 = torch.unsqueeze(data, 0)
+channel_mean = torch.zeros(3)
+channel_std = torch.zeros(3)
+print(data1.shape)
+N, C, H, W = data1.shape[:4]
+data2 = data1.view(N, C, -1)
+print(data2.shape)
+channel_mean += data2.mean(2).sum(0)
+channel_std += data2.std(2).sum(0)
+nb_samples = 1
+channel_mean /= nb_samples
+channel_std /= nb_samples
+print(channel_mean, channel_std)
+
