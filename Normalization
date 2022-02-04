@@ -1,0 +1,22 @@
+import numpy as np
+from PIL import Image
+import torchvision
+
+img = Image.open(('C:/Users/75634/Desktop/dog_test/dog/1.jpg'))
+print(np.array(img))
+
+img_trans1 = torchvision.transforms.ToTensor()(img)
+print(img_trans1.shape)
+print(img_trans1)
+
+transforms = torchvision.transforms.Compose(
+    [
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean = channel_mean,
+                             std = channel_std)
+    ]
+)
+
+img_trans2 = transforms(img)
+print(img_trans2.shape)
+print(img_trans2)
