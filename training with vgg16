@@ -57,7 +57,7 @@ train_loader = data.DataLoader(train_data, batch_size = batch_size, shuffle = Tr
 test_loader = data.DataLoader(te_data, batch_size = batch_size)
 
 class vgg16(nn.Module):
-    def __init__(self, num = 3):
+    def __init__(self, num = 2):
 
         super(vgg16, self).__init__()
 
